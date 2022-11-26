@@ -1,7 +1,7 @@
 import express from 'express';
 import { env } from './env';
 import debug from 'debug';
-import { getToken, setToken } from './services/db';
+import { getLastSong, getToken, saveLastSong, setToken } from './services/db';
 import { Spotify } from './services/spotify';
 import { getParam } from './utils';
 
@@ -80,7 +80,7 @@ app.get('/api/current', async (req, res) => {
 
         await setToken('access_token', data.access_token);
 
-        const response = await spotify.getCurrentlyPlaying(accessToken);
+        const response = await spotify.getCurrentlyPlaying(data.access_token);
 
         if (!response.success) {
             return res.status(500).json({
@@ -88,7 +88,18 @@ app.get('/api/current', async (req, res) => {
             });
         }
 
-        return res.json(response);
+        if (!response.empty) {
+            await saveLastSong(response.data);
+            return res.json(response);
+        }
+
+        const song = await getLastSong();
+
+        return res.json({
+            success: true,
+            empty: !song,
+            data: song,
+        });
     }
 
     return res.json(response);

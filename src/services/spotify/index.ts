@@ -3,68 +3,32 @@ import fetch from 'node-fetch';
 import { env } from '../../env';
 import { getRandomCode } from '../../utils';
 import debug from 'debug';
+import { CurrentlyPlayingData, CurrentlyPlayingResponse, SpotifyCurrentyPlayingResponse, SpotifyError, SpotifyImage, SpotifyTokenRefreshResponse, SpotifyTokenResponse } from './types';
 
 const log = debug('spotify');
-
-interface SpotifyError {
-    error: 'invalid_grant',
-    error_description: 'Authorization code expired',
-}
-
-interface SpotifyTokenResponse {
-    access_token: string;
-    token_type: string;
-    expires_in: number;
-}
-
-interface SpotifyTokenRefreshResponse extends SpotifyTokenResponse {
-    refresh_token: string;
-}
-
-interface SpotifyCurrentyPlayingResponse {
-    is_playing: true;
-    item: {
-        id: string;
-        name: string;
-        artists: {
-            id: string;
-            name: string;
-        }[];
-        album: {
-            id: string;
-            name: string;
-            images: {
-                url: string;
-            }[];
-        };
-        external_urls: {
-            spotify: string;
-        }
-    };
-}
-
-interface CurrentlyPlayingError {
-    success: false,
-    error: string,
-}
-
-interface CurrentlyPlayingData {
-    success: true,
-    empty: false,
-    data: SpotifyCurrentyPlayingResponse,
-}
-
-interface CurrentlyPlayingEmpty {
-    success: true,
-    empty: true,
-}
-
-type CurrentlyPlayingResponse = CurrentlyPlayingError | CurrentlyPlayingData | CurrentlyPlayingEmpty;
 
 const SCOPRE = 'user-read-private user-library-read user-top-read user-read-currently-playing';
 const SPOTIFY_AUTH_URL = 'https://accounts.spotify.com/authorize';
 const SPOTIFY_TOKEN_URL = 'https://accounts.spotify.com/api/token';
 const SPOTIFY_API_HOST = 'api.spotify.com';
+
+const getSmallestImage = (images: SpotifyImage[]) => {
+    return images.sort((a, b) => a.width - b.width)[0]?.url;
+}
+
+const getSongInfo = (data: SpotifyCurrentyPlayingResponse) => {
+    const { item } = data;
+    const { album, artists, external_urls, id, name } = item;
+
+    return {
+        id,
+        name,
+        artist: artists.map(a => a.name).join(', '),
+        album: album.name,
+        image: getSmallestImage(album.images),
+        url: external_urls.spotify,
+    };
+}
 
 export class Spotify {
     clientId: string;
@@ -73,7 +37,6 @@ export class Spotify {
     authorization: string;
 
     constructor() {
-
         this.clientId = env.CLIENT_ID;
         this.clientSecret = env.CLIENT_SECRET;
         this.redirectUrl = env.REDIRECT_URI;
@@ -146,14 +109,19 @@ export class Spotify {
                 },
             },
         )
-        .then(res => {
+        .then(async res => {
             if (res.status === 200) {
-                const data = res.json() as unknown as SpotifyCurrentyPlayingResponse;
-                return {
+                const data = await res.json() as unknown as SpotifyCurrentyPlayingResponse;
+
+                const song = getSongInfo(data);
+
+                const response: CurrentlyPlayingData = {
                     success: true,
                     empty: false,
-                    data,
+                    data: song,
                 }
+
+                return response;
             }
 
             if (res.status === 401 || res.status === 403) {
