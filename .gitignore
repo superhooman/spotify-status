@@ -1,9 +1,12 @@
+.vscode
+
 /node_modules
 
 /dist
 
 .env
 
+# because of pnpm
 package-lock.json
 
 db.sqlite

@@ -4,6 +4,7 @@ import debug from 'debug';
 import { getLastSong, getToken, saveLastSong, setToken } from './services/db';
 import { Spotify } from './services/spotify';
 import { getParam } from './utils';
+import { CurrentlyPlayingResponse } from './services/spotify/types';
 
 const log = debug('server');
 
@@ -51,8 +52,29 @@ app.get('/callback', async (req, res) => {
 });
 
 app.get('/api/current', async (req, res) => {
-    const accessToken = await getToken('access_token');
+    const resultSong = async (data: CurrentlyPlayingResponse) => {
+        if (!data.success) {
+            res.status(500);
+            return {
+                error: 'Failed to get currently playing',
+            };
+        }
 
+        if (!data.empty) {
+            await saveLastSong(data.song);
+            return response;
+        }
+
+        const song = await getLastSong();
+
+        return {
+            success: true,
+            empty: !song,
+            song: song ?? undefined,
+        };
+    }
+
+    const accessToken = await getToken('access_token');
     if (!accessToken) {
         return res.status(500).json({
             error: 'No token was found',
@@ -82,27 +104,10 @@ app.get('/api/current', async (req, res) => {
 
         const response = await spotify.getCurrentlyPlaying(data.access_token);
 
-        if (!response.success) {
-            return res.status(500).json({
-                error: 'Failed to get currently playing',
-            });
-        }
-
-        if (!response.empty) {
-            await saveLastSong(response.data);
-            return res.json(response);
-        }
-
-        const song = await getLastSong();
-
-        return res.json({
-            success: true,
-            empty: !song,
-            data: song,
-        });
+        return res.json(await resultSong(response));
     }
 
-    return res.json(response);
+    return res.json(await resultSong(response));
 });
 
 app.listen(env.PORT, () => {

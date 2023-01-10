@@ -118,7 +118,7 @@ export class Spotify {
                 const response: CurrentlyPlayingData = {
                     success: true,
                     empty: false,
-                    data: song,
+                    song,
                 }
 
                 return response;

@@ -56,7 +56,7 @@ export interface Song {
 export interface CurrentlyPlayingData {
     success: true,
     empty: false,
-    data: Song,
+    song: Song,
 }
 
 interface CurrentlyPlayingEmpty {
